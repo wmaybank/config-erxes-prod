@@ -1,0 +1,298 @@
+version: "2.4"
+services:
+  erxes:
+    image: erxes/erxes:master
+    container_name: erxes
+    restart: unless-stopped
+    environment:
+      REACT_APP_CDN_HOST: https://my-web-app.com/widgets/ 
+      REACT_APP_API_URL: https://my-web-app.com/api/
+      REACT_APP_API_SUBSCRIPTION_URL: ws://my-web-app.com/api/subscriptions
+      REACT_APP_DASHBOARD_URL: https://my-web-app.com/dashboard/front/
+      NGINX_HOST: my-web-app.com
+    ports:
+      - "3000:80"
+    networks:
+      - erxes-net
+
+  erxes-api:
+    image: erxes/erxes-api:master
+    container_name: erxes-api
+    restart: unless-stopped
+    environment:
+      # erxes-api
+      PORT: "3300"
+      NODE_ENV: production
+      HTTPS: "true"
+      DEBUG: "erxes-api:*"
+      # public urls
+      MAIN_APP_DOMAIN: https://my-web-app.com/
+      # non public urls
+      LOGS_API_DOMAIN: http://erxes-logger:3800
+      ENGAGES_API_DOMAIN: http://erxes-engages:3900
+      WORKERS_API_DOMAIN: http://erxes-workers:3700
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # Elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "erxes"
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"
+      JWT_TOKEN_SECRET: "erxes"
+      # Email verifier
+      EMAIL_VERIFIER_ENDPOINT: "https://email-verifier.erxes.io"
+      # Dashboard domain
+      DASHBOARD_DOMAIN: https://my-web-app.com/dashboard/front
+      HELPERS_DOMAIN: https://helper.erxes.io
+    ports:
+      - "3300:3300"
+    networks:
+      - erxes-net
+
+  erxes-crons:
+    image: erxes/erxes-api:master
+    container_name: erxes-crons
+    entrypoint: ["node", "--max_old_space_size=8192", "dist/cronJobs"]
+    restart: unless-stopped
+    environment:
+      # erxes-crons
+      PORT_CRONS: "3600"
+      NODE_ENV: production
+      PROCESS_NAME: crons
+      DEBUG: "erxes-crons:*"
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"  
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "3600:3600"
+    networks:
+      - erxes-net
+
+  erxes-workers:
+    image: erxes/erxes-api:master 
+    container_name: erxes-workers
+    entrypoint: ["node", "--max_old_space_size=8192", "--experimental-worker", "dist/workers"]
+    restart: unless-stopped
+    environment:
+      # erxes-workers
+      PORT_WORKERS: "3700"
+      NODE_ENV: production
+      DEBUG: "erxes-workers:*"
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "erxes"
+      JWT_TOKEN_SECRET: "erxes"
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"
+      # Elasticsearch
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - "3700:3700"
+    networks:
+      - erxes-net
+
+  erxes-widgets:
+    image: erxes/erxes-widgets:master
+    container_name: erxes-widgets
+    restart: unless-stopped
+    environment:
+      # erxes widgets
+      PORT: "3200"
+      ROOT_URL: https://my-web-app.com/widgets/
+      API_URL: https://my-web-app.com/api/
+      API_SUBSCRIPTIONS_URL: ws://my-web-app.com/api/subscriptions
+    ports:
+      - "3200:3200"
+    networks:
+      - erxes-net
+
+  erxes-integrations:
+    image: erxes/erxes-integrations:master
+    container_name: erxes-integrations
+    restart: unless-stopped
+    environment:
+      PORT: "3400"
+      NODE_ENV: production
+      DEBUG: "erxes-integrations:*"
+      # public urls
+      DOMAIN: https://my-web-app.com/integrations/
+      MAIN_APP_DOMAIN: https://my-web-app.com/
+      MAIN_API_DOMAIN: https://my-web-app.com/api/
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "erxes"
+      # Dashboard
+      ENDPOINT_URL: https://enterprise.erxes.io
+    ports:
+      - "3400:3400"
+    networks:
+      - erxes-net
+   
+  erxes-logger:
+    image: erxes/erxes-logger:master
+    container_name: erxes-logger
+    restart: unless-stopped
+    environment:
+      PORT: "3800"
+      DEBUG: "erxes-logs:*"
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"
+    networks:
+      - erxes-net
+
+  erxes-engages:
+    image: erxes/erxes-engages-email-sender:master
+    container_name: erxes-engages
+    restart: unless-stopped
+    environment:
+      PORT: "3900"
+      NODE_ENV: production
+      DEBUG: "erxes-engages:*"
+      # public urls
+      MAIN_API_DOMAIN: https://my-web-app.com/api/
+      # MongoDB
+      MONGO_URL: mongodb://mongo/erxes
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "erxes"
+      # RabbitMQ
+      RABBITMQ_HOST: "amqp://rabbitmq:5672/erxes"
+    networks:
+      - erxes-net
+
+  erxes-elksyncer:
+    image: erxes/erxes-elksyncer:master
+    container_name: erxes-elksyncer
+    restart: unless-stopped
+    environment:
+      DB_NAME: "erxes"
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      MONGO_URL: mongodb://mongo/erxes
+    volumes:
+        - ./mongoConnectorLog:/var/log/mongo-connector
+    networks:
+      - erxes-net
+
+  erxes-dashboard-front:
+    image: erxes/erxes-dashboard-front:master
+    container_name: erxes-dashboard-front
+    restart: unless-stopped
+    ports:
+      - "4200:80"
+    environment:
+      PORT: "4200"
+      REACT_APP_API_URL: https://my-web-app.com/api/
+      REACT_APP_API_SUBSCRIPTION_URL: ws://my-web-app.com/api/subscriptions
+      REACT_APP_DASHBOARD_API_URL: https://my-web-app.com/dashboard/api/
+      NGINX_HOST: my-web-app.com
+    networks:
+      - erxes-net
+
+  erxes-dashboard-api:
+    image: erxes/erxes-dashboard-api:master
+    container_name: erxes-dashboard-api
+    restart: unless-stopped
+    ports:
+      - "4300:4300"
+    environment:
+      DASHBOARD_DOMAIN: https://my-web-app.com/dashboard/api/
+      NODE_ENV: production
+      PORT: "4300"
+      CUBEJS_DB_TYPE: elasticsearch
+      CUBEJS_DB_URL: http://elasticsearch:9200
+      CUBEJS_URL: https://my-web-app.com/dashboard/api/
+      CUBEJS_API_SECRET: "erxes"
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: "erxes"
+      DB_NAME: "erxes"
+    networks:
+      - erxes-net
+
+  mongo:
+    hostname: mongo
+    image: mongo:4.0.20
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: test $$(echo "rs.initiate().ok || rs.status().ok" | mongo --quiet) -eq 1
+      interval: 2s
+      timeout: 2s
+      retries: 200
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    # All erxes database will be saved into mounted directory below. <<IF YOU DELETE THIS MOUNTED DIRECTORY ALL OF YOUR ERXES DATA WILL BE LOST SO BE CAUTIOUS>>
+    volumes:
+      - ./data/db:/data/db
+    networks:
+      - erxes-net
+
+  redis:
+    image: 'redis'
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - erxes-net
+    command: redis-server --requirepass erxes
+
+  rabbitmq:
+    image: rabbitmq:3.7.17-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    hostname: rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    networks:
+      - erxes-net
+    # RabbitMQ data will be saved into ./rabbitmq-data folder.
+    volumes:
+      - ./rabbitmq-data:/var/lib/rabbitmq
+
+  elasticsearch:
+    image: "docker.elastic.co/elasticsearch/elasticsearch:7.17.0"
+    container_name: "elasticsearch"
+    environment:
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 32768
+        hard: 65536
+    ports:
+      - "9200:9200"
+    networks:
+      - erxes-net
+    volumes:
+      - ./elasticsearchData:/usr/share/elasticsearch/data
+
+  kibana:
+    image: "docker.elastic.co/kibana/kibana:7.17.0"
+    container_name: "kibana"
+    depends_on:
+      - "elasticsearch"
+    ports:
+      - "5601:5601"
+    networks:
+      - erxes-net
+networks:
+  erxes-net:
+    driver: bridge 
